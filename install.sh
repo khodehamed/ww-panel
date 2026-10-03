@@ -101,12 +101,19 @@ sync_app_files() {
     if ! curl -fL --connect-timeout 20 --max-time 120 "$REPO_TARBALL" -o "$tarball"; then
       err "Download failed: $REPO_TARBALL"
     fi
-    rm -rf /tmp/ww-panel-extract
-    mkdir -p /tmp/ww-panel-extract
-    tar -xzf "$tarball" -C /tmp/ww-panel-extract
-    local extracted
-    extracted="$(find /tmp/ww-panel-extract -maxdepth 1 -type d -name 'ww-panel-*' | head -n1)"
-    [[ -n "$extracted" ]] || err "tarball layout unexpected"
+    # Extract dir must NOT match ww-panel-* (GitHub tarball root is ww-panel-master).
+    local extract_dir="/tmp/wwpanel-src-$$"
+    rm -rf "$extract_dir"
+    mkdir -p "$extract_dir"
+    tar -xzf "$tarball" -C "$extract_dir"
+    local extracted=""
+    if [[ -f "${extract_dir}/ww-panel-master/app/main.py" ]]; then
+      extracted="${extract_dir}/ww-panel-master"
+    else
+      extracted="$(find "$extract_dir" -mindepth 1 -maxdepth 1 -type d \
+        -exec test -f '{}/app/main.py' \; -print | head -n1)"
+    fi
+    [[ -n "$extracted" && -f "${extracted}/app/main.py" ]] || err "tarball layout unexpected"
     mkdir -p "${INSTALL_DIR}/app/static" "${INSTALL_DIR}/systemd"
     cp -a "${extracted}/app/." "${INSTALL_DIR}/app/"
     cp -f "${extracted}/requirements.txt" "${INSTALL_DIR}/"
@@ -114,7 +121,7 @@ sync_app_files() {
     cp -f "${extracted}/README.md" "${INSTALL_DIR}/" 2>/dev/null || true
     cp -f "${extracted}/systemd/ww-panel.service" "${INSTALL_DIR}/systemd/" 2>/dev/null || true
     cp -f "${extracted}/install.sh" "${INSTALL_DIR}/install.sh"
-    rm -rf /tmp/ww-panel-extract "$tarball"
+    rm -rf "$extract_dir" "$tarball"
   fi
 
   if [[ ! -f "${INSTALL_DIR}/install.sh" ]]; then
