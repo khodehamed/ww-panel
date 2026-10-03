@@ -1,0 +1,19 @@
+[Unit]
+Description=WaterWall Tunnel Control Panel (ww-panel)
+Documentation=https://github.com/khodehamed/ww-panel
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/ww-panel
+EnvironmentFile=-/opt/ww-panel/panel.env
+ExecStart=/opt/ww-panel/venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 12010
+Restart=always
+RestartSec=3
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

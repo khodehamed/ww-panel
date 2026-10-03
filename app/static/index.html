@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ww-panel · کنترل تانل WaterWall</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/app.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js" defer></script>
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <div class="aurora" aria-hidden="true"></div>
+  <div class="grid-bg" aria-hidden="true"></div>
+
+  <section id="login-view" class="login-wrap">
+    <div class="login-card glass">
+      <div class="brand-mark">WW</div>
+      <h1>پنل کنترل تانل</h1>
+      <p class="sub">WaterWall Control Panel · ww-panel</p>
+      <form id="login-form" autocomplete="on">
+        <label>نام کاربری <span class="en">Username</span>
+          <input id="login-user" name="username" type="text" required autofocus />
+        </label>
+        <label>رمز عبور <span class="en">Password</span>
+          <input id="login-pass" name="password" type="password" required />
+        </label>
+        <button type="submit" class="btn primary wide">ورود به داشبورد</button>
+        <p id="login-error" class="error" hidden></p>
+      </form>
+      <p class="hint">پیش‌فرض: <b>admin</b> — رمز فقط یک‌بار هنگام نصب نمایش داده می‌شود.</p>
+    </div>
+  </section>
+
+  <section id="app-view" hidden>
+    <header class="topbar glass">
+      <div class="brand">
+        <div class="brand-mark sm">WW</div>
+        <div>
+          <div class="brand-title">ww-panel</div>
+          <div class="brand-sub">کنترل تانل WaterWall · فقط مشاهدهٔ بک‌هال</div>
+        </div>
+      </div>
+      <div class="top-actions">
+        <div id="clock" class="clock"></div>
+        <button id="btn-refresh" class="btn ghost" type="button">بروزرسانی</button>
+        <button id="btn-new" class="btn primary" type="button">تانل جدید</button>
+        <button id="btn-logout" class="btn ghost" type="button">خروج</button>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <section id="stats" class="stats"></section>
+      <section id="cards" class="cards"></section>
+    </main>
+  </section>
+
+  <div id="modal" class="modal" hidden>
+    <div class="modal-card glass">
+      <div class="modal-head">
+        <h2 id="modal-title">ویرایش تانل</h2>
+        <button id="modal-close" class="btn ghost icon" type="button" aria-label="close">×</button>
+      </div>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+</body>
+</html>
