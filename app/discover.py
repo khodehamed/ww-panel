@@ -102,19 +102,6 @@ def _list_systemd_units(prefix: str) -> list[str]:
             continue
         for p in d.glob(f"{prefix}*.service"):
             found.add(p.name[:-8] if p.name.endswith(".service") else p.name)
-    try:
-        proc = _run(
-            ["systemctl", "list-unit-files", "--type=service", "--no-legend", "--no-pager"],
-            timeout=4.0,
-        )
-        for line in (proc.stdout or "").splitlines():
-            unit = line.split()[0] if line.split() else ""
-            if unit.endswith(".service"):
-                unit = unit[:-8]
-            if unit.startswith(prefix) or (prefix == "backhaul" and _is_backhaul_name(unit)):
-                found.add(unit)
-    except (OSError, subprocess.TimeoutExpired):
-        pass
     return sorted(found)
 
 
@@ -122,16 +109,29 @@ def systemd_state(unit: str) -> dict[str, str]:
     if not unit:
         return {"active": "unknown", "enabled": "unknown", "result": ""}
     try:
-        active = _run(["systemctl", "is-active", f"{unit}.service"], timeout=2.5)
-        enabled = _run(["systemctl", "is-enabled", f"{unit}.service"], timeout=2.5)
-        result = _run(
-            ["systemctl", "show", "-p", "Result", "--value", f"{unit}.service"],
-            timeout=2.5,
+        proc = _run(
+            [
+                "systemctl",
+                "show",
+                f"{unit}.service",
+                "-p",
+                "ActiveState",
+                "-p",
+                "UnitFileState",
+                "-p",
+                "Result",
+            ],
+            timeout=2.0,
         )
+        parsed: dict[str, str] = {}
+        for line in (proc.stdout or "").splitlines():
+            if "=" in line:
+                key, val = line.split("=", 1)
+                parsed[key] = val
         return {
-            "active": (active.stdout or "").strip() or "unknown",
-            "enabled": (enabled.stdout or "").strip() or "unknown",
-            "result": (result.stdout or "").strip(),
+            "active": parsed.get("ActiveState") or "unknown",
+            "enabled": parsed.get("UnitFileState") or "unknown",
+            "result": parsed.get("Result") or "",
         }
     except (OSError, subprocess.TimeoutExpired):
         return {"active": "unknown", "enabled": "unknown", "result": ""}
@@ -331,12 +331,15 @@ def _profile_for_dir(dirname: str) -> dict[str, str]:
     }
 
 
-def _health_status(systemd_active: bool, tun_up: bool, ping_ok: bool) -> str:
+def health_status(systemd_active: bool, tun_up: bool, ping_ok: bool) -> str:
     if systemd_active and tun_up and ping_ok:
         return "UP"
     if systemd_active:
         return "DEGRADED"
     return "DOWN"
+
+
+_health_status = health_status
 
 
 def _mask_key(key: str) -> str:
@@ -347,7 +350,9 @@ def _mask_key(key: str) -> str:
     return key[:3] + "…" + key[-3:]
 
 
-def _dir_tunnel(install_dir: Path, ifaces: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
+def _dir_tunnel(
+    install_dir: Path, ifaces: dict[str, dict[str, Any]], *, do_ping: bool = False
+) -> dict[str, Any] | None:
     name = install_dir.name
     if not name.startswith("waterwall-proto51"):
         return None
@@ -375,7 +380,12 @@ def _dir_tunnel(install_dir: Path, ifaces: dict[str, dict[str, Any]]) -> dict[st
         tun_peer = _peer_from_local(tun_local, "")
 
     sysd = systemd_state(unit)
-    ping = ping_peer(tun_peer) if tun_peer else {"ok": False, "latency_ms": None, "error": "no-peer"}
+    if do_ping and tun_peer:
+        ping = ping_peer(tun_peer)
+    elif not tun_peer:
+        ping = {"ok": False, "latency_ms": None, "error": "no-peer"}
+    else:
+        ping = {"ok": False, "latency_ms": None, "error": "pending"}
     systemd_ok = sysd["active"] == "active"
     tun_up = bool(iface.get("up")) and bool(tun)
     status = _health_status(systemd_ok, tun_up, bool(ping.get("ok")))
@@ -520,7 +530,7 @@ def _backhaul_entries(ifaces: dict[str, dict[str, Any]]) -> list[dict[str, Any]]
     return items
 
 
-def discover_tunnels() -> list[dict[str, Any]]:
+def discover_tunnels(*, do_ping: bool = False) -> list[dict[str, Any]]:
     ifaces = _ip_link_map()
     found: dict[str, dict[str, Any]] = {}
 
@@ -528,7 +538,7 @@ def discover_tunnels() -> list[dict[str, Any]]:
         for path in sorted(OPT_ROOT.glob("waterwall-proto51*")):
             if not path.is_dir():
                 continue
-            rec = _dir_tunnel(path, ifaces)
+            rec = _dir_tunnel(path, ifaces, do_ping=do_ping)
             if rec:
                 found[rec["id"]] = rec
 
@@ -540,7 +550,7 @@ def discover_tunnels() -> list[dict[str, Any]]:
             continue
         install_dir = OPT_ROOT / unit
         if install_dir.is_dir():
-            rec = _dir_tunnel(install_dir, ifaces)
+            rec = _dir_tunnel(install_dir, ifaces, do_ping=do_ping)
             if rec:
                 found[rec["id"]] = rec
                 continue
@@ -548,7 +558,13 @@ def discover_tunnels() -> list[dict[str, Any]]:
         sysd = systemd_state(unit)
         tun = profile.get("tun") or ""
         iface = ifaces.get(tun, {}) if tun else {}
-        ping = ping_peer(profile.get("tun_peer") or "")
+        peer = profile.get("tun_peer") or ""
+        if do_ping and peer:
+            ping = ping_peer(peer)
+        elif not peer:
+            ping = {"ok": False, "latency_ms": None, "error": "no-peer"}
+        else:
+            ping = {"ok": False, "latency_ms": None, "error": "pending"}
         systemd_ok = sysd["active"] == "active"
         tun_up = bool(iface.get("up"))
         found[tid] = {

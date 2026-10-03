@@ -12,7 +12,6 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
 
 from . import __version__
 from .apply import ApplyError, apply_update, control_unit, create_tunnel
@@ -156,10 +155,14 @@ def _public_tunnel(t: dict[str, Any]) -> dict[str, Any]:
     out = dict(t)
     out.pop("aes_key", None)
     live = STORE.latest_map().get(t.get("tun") or "", {})
-    out["rx_bps"] = live.get("rx_bps", 0)
-    out["tx_bps"] = live.get("tx_bps", 0)
+    if live:
+        out["rx_bps"] = live.get("rx_bps", 0)
+        out["tx_bps"] = live.get("tx_bps", 0)
+    else:
+        out.setdefault("rx_bps", 0)
+        out.setdefault("tx_bps", 0)
     cached = STORE.cached_ping(t.get("id") or "")
-    if cached and not (t.get("ping") or {}).get("ok"):
+    if cached:
         out["ping"] = cached
     return out
 
@@ -225,7 +228,9 @@ def api_logout(response: Response) -> dict[str, Any]:
 
 @app.get("/api/tunnels")
 def api_tunnels(_user: str = Depends(require_user)) -> dict[str, Any]:
-    items = [_public_tunnel(t) for t in discover_tunnels()]
+    items = STORE.cached_tunnels()
+    if not items:
+        items = [_public_tunnel(t) for t in discover_tunnels(do_ping=False)]
     return {"ok": True, "tunnels": items}
 
 
@@ -237,15 +242,21 @@ def api_tunnel(tunnel_id: str, _user: str = Depends(require_user)) -> dict[str, 
     return {"ok": True, "tunnel": _public_tunnel(t)}
 
 
+@app.get("/api/metrics")
+def api_metrics_all(_user: str = Depends(require_user)) -> dict[str, Any]:
+    return STORE.all_metrics()
+
+
 @app.get("/api/tunnels/{tunnel_id}/metrics")
 def api_metrics(tunnel_id: str, _user: str = Depends(require_user)) -> dict[str, Any]:
-    t = get_tunnel(tunnel_id)
+    cached = next((x for x in STORE.cached_tunnels() if x.get("id") == tunnel_id), None)
+    t = cached or get_tunnel(tunnel_id)
     if not t:
         raise HTTPException(status_code=404, detail="tunnel not found")
     tun = t.get("tun") or ""
     snap = STORE.snapshot(tun)
     snap["tunnel_id"] = tunnel_id
-    snap["ping"] = t.get("ping") or {}
+    snap["ping"] = STORE.cached_ping(tunnel_id) or t.get("ping") or {}
     return snap
 
 
@@ -301,8 +312,18 @@ def api_next_slot(_user: str = Depends(require_user)) -> dict[str, Any]:
 
 @app.get("/")
 def index() -> FileResponse:
-    return FileResponse(STATIC_DIR / "index.html")
+    html = STATIC_DIR / "index.html"
+    if not html.is_file():
+        raise HTTPException(status_code=404, detail="UI missing")
+    return FileResponse(html, media_type="text/html; charset=utf-8")
 
 
-if STATIC_DIR.is_dir():
-    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+@app.get("/static/{name:path}")
+def static_asset(name: str) -> FileResponse:
+    target = (STATIC_DIR / name).resolve()
+    root = STATIC_DIR.resolve()
+    if root not in target.parents and target != root:
+        raise HTTPException(status_code=404, detail="not found")
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="not found")
+    return FileResponse(target)

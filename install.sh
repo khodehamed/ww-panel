@@ -129,6 +129,7 @@ sync_app_files() {
   fi
   chmod +x "${INSTALL_DIR}/install.sh" 2>/dev/null || true
   [[ -f "${INSTALL_DIR}/app/main.py" ]] || err "app/main.py missing after sync"
+  [[ -f "${INSTALL_DIR}/app/static/index.html" ]] || err "app/static/index.html missing after sync"
   ok "Panel files in ${INSTALL_DIR}"
 }
 
@@ -240,7 +241,7 @@ start_panel() {
 }
 
 do_install() {
-  local port bind user pass keep_pass="0"
+  local port bind user pass generated="0"
   load_env
   port="${PANEL_PORT:-$DEFAULT_PORT}"
   bind="${PANEL_BIND:-$DEFAULT_BIND}"
@@ -257,39 +258,21 @@ do_install() {
   read_tty -r -p "Panel username [${user}]: " tmp || true
   [[ -n "${tmp:-}" ]] && user="$tmp"
 
-  if [[ -f "$CONF_ENV" ]]; then
-    read_tty -r -p "Keep existing password? [Y/n]: " tmp || true
-    case "${tmp:-Y}" in
-      n|N|no|NO) keep_pass=0 ;;
-      *) keep_pass=1 ;;
-    esac
+  echo "رمز پنل را وارد کنید — خالی بگذارید تا خودکار ساخته شود"
+  echo "Enter panel password — leave empty to generate"
+  read_tty -r -s -p "Panel password / رمز پنل: " pass || true
+  echo
+  if [[ -z "${pass:-}" ]]; then
+    pass="$(gen_password)"
+    generated="1"
+  else
+    [[ ${#pass} -ge 6 ]] || err "password too short (min 6) / رمز حداقل ۶ کاراکتر"
   fi
 
   ensure_deps
   sync_app_files
   setup_venv
-
-  if [[ "$keep_pass" == "1" ]]; then
-    # Keep hashes; only refresh port/bind/user fields if needed.
-    # shellcheck disable=SC1090
-    source "$CONF_ENV"
-    PANEL_PORT="$port"
-    PANEL_BIND="$bind"
-    PANEL_USER="$user"
-    cat > "$CONF_ENV" <<EOF
-PANEL_PORT=${PANEL_PORT}
-PANEL_BIND=${PANEL_BIND}
-PANEL_USER=${PANEL_USER}
-PANEL_PASS_SALT=${PANEL_PASS_SALT}
-PANEL_PASS_HASH=${PANEL_PASS_HASH}
-PANEL_SECRET=${PANEL_SECRET}
-EOF
-    chmod 600 "$CONF_ENV"
-    pass=""
-  else
-    pass="$(gen_password)"
-    write_panel_env "$port" "$bind" "$user" "$pass"
-  fi
+  write_panel_env "$port" "$bind" "$user" "$pass"
 
   write_unit "$port" "$bind"
   write_menu_wrapper
@@ -302,11 +285,11 @@ EOF
   echo "  menu    : wwpanel   (or ww-panel)"
   echo "  listen  : ${bind}:${port}"
   echo "  login   : user=${user}"
-  if [[ -n "$pass" ]]; then
-    echo -e "  ${YLW}password (shown once):${NC} ${GRN}${pass}${NC}"
+  if [[ "$generated" == "1" ]]; then
+    echo -e "  ${YLW}password (generated, shown once):${NC} ${GRN}${pass}${NC}"
     echo "            save it now — it is stored as a hash only"
   else
-    echo "  password: unchanged"
+    echo "  password: the one you entered (stored as a hash only)"
   fi
   echo "  URL     : http://<server-ip>:${port}/"
   echo "  firewall: allow TCP ${port} (panel binds ${bind})"
@@ -352,19 +335,25 @@ change_port() {
 set_password() {
   [[ -f "$CONF_ENV" ]] || err "Not installed"
   load_env
-  local user pass
+  local user pass generated="0"
   read_tty -r -p "Username [${PANEL_USER}]: " user || true
   user="${user:-$PANEL_USER}"
-  read_tty -r -s -p "New password (empty=auto): " pass || true
+  echo "رمز پنل را وارد کنید — خالی بگذارید تا خودکار ساخته شود"
+  echo "Enter panel password — leave empty to generate"
+  read_tty -r -s -p "Panel password / رمز پنل: " pass || true
   echo
   if [[ -z "${pass:-}" ]]; then
     pass="$(gen_password)"
+    generated="1"
     echo -e "${YLW}Generated password (shown once):${NC} ${GRN}${pass}${NC}"
   fi
-  [[ ${#pass} -ge 6 ]] || err "password too short"
+  [[ ${#pass} -ge 6 ]] || err "password too short (min 6) / رمز حداقل ۶ کاراکتر"
   rewrite_password "$user" "$pass"
   systemctl restart "${SERVICE_NAME}" || true
   ok "Password updated for user=${user}"
+  if [[ "$generated" != "1" ]]; then
+    echo "  password: the one you entered (stored as a hash only)"
+  fi
 }
 
 uninstall_all() {

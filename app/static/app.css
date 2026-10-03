@@ -15,12 +15,16 @@
   --ok: #34d399;
   --shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
   --radius: 22px;
+  --ui: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
+  --mono: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, monospace;
 }
+
+[hidden] { display: none !important; }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; min-height: 100%; }
 body {
-  font-family: "Vazirmatn", "Segoe UI", sans-serif;
+  font-family: var(--ui);
   background: radial-gradient(1200px 700px at 80% -10%, rgba(45, 212, 191, 0.12), transparent 50%),
               radial-gradient(900px 500px at -10% 110%, rgba(56, 189, 248, 0.1), transparent 45%),
               var(--bg);
@@ -55,10 +59,11 @@ body {
   -webkit-backdrop-filter: blur(18px);
 }
 
-.login-wrap {
-  min-height: 100vh;
+#login-view { display: none; }
+#login-view.is-open {
   display: grid;
   place-items: center;
+  min-height: 100vh;
   position: relative;
   z-index: 1;
   padding: 24px;
@@ -82,9 +87,20 @@ body {
 }
 .brand-mark.sm { width: 44px; height: 44px; margin: 0; font-size: 0.95rem; border-radius: 14px; }
 
-label { display: block; text-align: right; font-size: 0.86rem; color: var(--muted); margin-bottom: 14px; }
-.en { color: #64748b; font-size: 0.75rem; margin-right: 6px; font-family: "IBM Plex Mono", monospace; }
-input, select, textarea {
+#login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  text-align: right;
+}
+.field { display: block; width: 100%; }
+.field label, label {
+  display: block; text-align: right; font-size: 0.86rem; color: var(--muted); margin-bottom: 0;
+}
+.en { color: #64748b; font-size: 0.75rem; margin-right: 6px; font-family: var(--mono); }
+.field input, input, select, textarea {
+  display: block;
   width: 100%;
   margin-top: 6px;
   border: 1px solid var(--stroke);
@@ -127,7 +143,8 @@ input:focus, select:focus, textarea:focus {
 .btn.icon { width: 36px; height: 36px; padding: 0; font-size: 1.3rem; }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
 
-#app-view { position: relative; z-index: 1; min-height: 100vh; }
+#app-view { display: none; position: relative; z-index: 1; min-height: 100vh; }
+#app-view.is-open { display: block; }
 .topbar {
   position: sticky; top: 0; z-index: 5;
   display: flex; justify-content: space-between; align-items: center;
@@ -138,7 +155,7 @@ input:focus, select:focus, textarea:focus {
 .brand-title { font-weight: 800; letter-spacing: 0.04em; }
 .brand-sub { color: var(--muted); font-size: 0.78rem; }
 .top-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.clock { font-family: "IBM Plex Mono", monospace; color: var(--cyan); font-size: 0.86rem; }
+.clock { font-family: var(--mono); color: var(--cyan); font-size: 0.86rem; }
 
 .wrap { padding: 18px 16px 40px; max-width: 1400px; margin: 0 auto; }
 .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
@@ -169,7 +186,7 @@ input:focus, select:focus, textarea:focus {
 }
 .card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
 .card h3 { margin: 0; font-size: 1.05rem; }
-.meta { color: var(--muted); font-size: 0.75rem; margin-top: 3px; font-family: "IBM Plex Mono", monospace; }
+.meta { color: var(--muted); font-size: 0.75rem; margin-top: 3px; font-family: var(--mono); }
 .pills { display: flex; flex-wrap: wrap; gap: 6px; }
 .pill {
   font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em;
@@ -185,20 +202,23 @@ input:focus, select:focus, textarea:focus {
 .pair {
   margin: 14px 0 10px;
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  font-family: "IBM Plex Mono", monospace; font-size: 0.82rem;
+  font-family: var(--mono); font-size: 0.82rem;
 }
 .pair .arrow { color: var(--cyan); }
 .kv { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; font-size: 0.8rem; color: var(--muted); }
 .kv b { color: var(--text); font-weight: 600; }
 .chart-box { height: 86px; margin: 12px 0 8px; }
+.chart-box canvas { width: 100%; height: 100%; display: block; }
 .card-actions { display: flex; gap: 8px; margin-top: 10px; }
 
 .modal {
+  display: none;
   position: fixed; inset: 0; z-index: 20;
   background: rgba(2, 6, 16, 0.62);
-  display: grid; place-items: center;
+  place-items: center;
   padding: 20px;
 }
+.modal.is-open { display: grid; }
 .modal-card {
   width: min(720px, 100%);
   max-height: min(90vh, 900px);
@@ -229,6 +249,7 @@ input:focus, select:focus, textarea:focus {
 }
 
 .toast {
+  display: none;
   position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
   z-index: 30;
   background: rgba(8, 20, 36, 0.92);
@@ -238,6 +259,8 @@ input:focus, select:focus, textarea:focus {
   border-radius: 999px;
   box-shadow: var(--shadow);
 }
+.toast.is-open { display: block; }
+.toast.danger { border-color: rgba(251, 113, 133, 0.45); }
 
 .empty {
   grid-column: 1 / -1;

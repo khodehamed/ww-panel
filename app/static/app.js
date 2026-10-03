@@ -1,9 +1,10 @@
 (() => {
   const $ = (id) => document.getElementById(id);
-  const charts = new Map();
   let tunnels = [];
+  let knownKey = "";
   let statusTimer = null;
   let metricsTimer = null;
+  let clockTimer = null;
 
   const fmtBps = (n) => {
     const v = Number(n) || 0;
@@ -13,13 +14,24 @@
     return Math.round(v) + " bps";
   };
 
+  const pingTxt = (ping) => {
+    const p = ping || {};
+    if (p.ok) return `${p.latency_ms ?? "—"} ms`;
+    if (p.error === "pending") return "در حال سنجش";
+    return p.error || "بدون پاسخ";
+  };
+
   const toast = (msg, danger) => {
     const el = $("toast");
     el.textContent = msg;
+    el.classList.toggle("danger", !!danger);
+    el.classList.add("is-open");
     el.hidden = false;
-    el.style.borderColor = danger ? "rgba(251,113,133,.45)" : "";
     clearTimeout(el._t);
-    el._t = setTimeout(() => { el.hidden = true; }, 3800);
+    el._t = setTimeout(() => {
+      el.classList.remove("is-open");
+      el.hidden = true;
+    }, 3800);
   };
 
   const api = async (path, opts = {}) => {
@@ -36,16 +48,39 @@
   };
 
   const setClock = () => {
-    const now = new Date();
-    $("clock").textContent = now.toLocaleString("fa-IR", { hour12: false });
+    const el = $("clock");
+    if (!el) return;
+    el.textContent = new Date().toLocaleString("fa-IR", { hour12: false });
+  };
+
+  const closeModal = () => {
+    const el = $("modal");
+    el.classList.remove("is-open");
+    el.hidden = true;
+    el.setAttribute("aria-hidden", "true");
+    $("modal-body").innerHTML = "";
+    $("modal-title").textContent = "";
+  };
+
+  const openModal = () => {
+    const el = $("modal");
+    el.classList.add("is-open");
+    el.hidden = false;
+    el.setAttribute("aria-hidden", "false");
   };
 
   const showApp = (on) => {
+    $("login-view").classList.toggle("is-open", !on);
     $("login-view").hidden = on;
+    $("app-view").classList.toggle("is-open", on);
     $("app-view").hidden = !on;
+    if (!on) {
+      closeModal();
+      $("toast").classList.remove("is-open");
+      $("toast").hidden = true;
+    }
   };
 
-  const closeModal = () => { $("modal").hidden = true; $("modal-body").innerHTML = ""; };
   $("modal-close").onclick = closeModal;
   $("modal").addEventListener("click", (e) => { if (e.target.id === "modal") closeModal(); });
 
@@ -55,36 +90,43 @@
     return "down";
   };
 
-  const ensureChart = (id, canvas) => {
-    if (!window.Chart) return null;
-    if (charts.has(id)) {
-      const ch = charts.get(id);
-      if (ch.canvas === canvas) return ch;
-      ch.destroy();
-      charts.delete(id);
+  const drawSpark = (canvas, rx, tx) => {
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth || 300;
+    const h = canvas.clientHeight || 80;
+    if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
     }
-    const ch = new Chart(canvas, {
-      type: "line",
-      data: {
-        labels: [],
-        datasets: [
-          { label: "RX", data: [], borderColor: "#67e8f9", backgroundColor: "rgba(103,232,249,.12)", fill: true, tension: 0.35, pointRadius: 0, borderWidth: 1.6 },
-          { label: "TX", data: [], borderColor: "#2dd4bf", backgroundColor: "rgba(45,212,191,.08)", fill: true, tension: 0.35, pointRadius: 0, borderWidth: 1.6 },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { display: false },
-          y: { display: false, beginAtZero: true },
-        },
-      },
-    });
-    charts.set(id, ch);
-    return ch;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const rxd = rx && rx.length ? rx : [0, 0];
+    const txd = tx && tx.length ? tx : [0, 0];
+    const n = Math.max(rxd.length, txd.length, 2);
+    let max = 1;
+    for (const v of rxd) max = Math.max(max, Number(v) || 0);
+    for (const v of txd) max = Math.max(max, Number(v) || 0);
+    const paint = (data, stroke, fill) => {
+      ctx.beginPath();
+      data.forEach((v, i) => {
+        const x = (i / (n - 1)) * w;
+        const y = h - 3 - ((Number(v) || 0) / max) * (h - 8);
+        if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+      });
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+      ctx.lineTo(w, h);
+      ctx.lineTo(0, h);
+      ctx.closePath();
+      ctx.fillStyle = fill;
+      ctx.fill();
+    };
+    paint(txd, "#2dd4bf", "rgba(45,212,191,.10)");
+    paint(rxd, "#67e8f9", "rgba(103,232,249,.12)");
   };
 
   const renderStats = (list) => {
@@ -99,39 +141,42 @@
       <div class="stat"><span>بک‌هال قفل‌شده</span><b>${locked}</b></div>`;
   };
 
+  const setText = (root, sel, text) => {
+    const el = root.querySelector(sel);
+    if (el && el.textContent !== String(text)) el.textContent = text;
+  };
+
   const cardHtml = (t) => {
-    const ping = t.ping || {};
-    const pingTxt = ping.ok ? `${ping.latency_ms ?? "—"} ms` : (ping.error || "بدون پاسخ");
     const locked = t.locked || t.kind === "backhaul";
     const role = t.local_role === "iran" ? "این سمت: ایران" : (t.local_role === "kharej" ? "این سمت: خارج" : "");
     return `
       <article class="card ${pillClass(t.status)}" data-id="${t.id}">
         <div class="card-head">
           <div>
-            <h3>${t.name}</h3>
-            <div class="meta">${t.unit || "no-unit"} · ${t.family || ""} ${role ? "· " + role : ""}</div>
+            <h3 data-f="name">${t.name}</h3>
+            <div class="meta" data-f="meta">${t.unit || "no-unit"} · ${t.family || ""} ${role ? "· " + role : ""}</div>
           </div>
           <div class="pills">
-            <span class="pill ${pillClass(t.status)}">${t.status}</span>
+            <span class="pill ${pillClass(t.status)}" data-f="status">${t.status}</span>
             ${locked ? '<span class="pill lock">LOCKED</span>' : ""}
-            ${t.encrypt === "1" ? '<span class="pill enc">ENCRYPT</span>' : '<span class="pill lock">NO ENC</span>'}
-            ${t.proto ? `<span class="pill proto">PROTO ${t.proto}</span>` : ""}
+            <span class="pill ${t.encrypt === "1" ? "enc" : "lock"}" data-f="enc">${t.encrypt === "1" ? "ENCRYPT" : "NO ENC"}</span>
+            <span class="pill proto" data-f="proto">${t.proto ? "PROTO " + t.proto : ""}</span>
           </div>
         </div>
         <div class="pair">
-          <div>IR ${t.iran_ip || "—"}</div>
+          <div data-f="iran">IR ${t.iran_ip || "—"}</div>
           <div class="arrow">↔</div>
-          <div>KH ${t.kharej_ip || "—"}</div>
+          <div data-f="kharej">KH ${t.kharej_ip || "—"}</div>
         </div>
         <div class="kv">
-          <div>تونل <b>${t.tun || "—"}</b></div>
-          <div>systemd <b>${(t.systemd && t.systemd.active) || "—"}</b></div>
-          <div>IP تونل <b>${t.tun_local || "—"}</b></div>
-          <div>پیر <b>${t.tun_peer || "—"}</b></div>
-          <div>پینگ <b>${pingTxt}</b></div>
-          <div>پهنای‌باند <b>${fmtBps(t.rx_bps)} ↓ / ${fmtBps(t.tx_bps)} ↑</b></div>
+          <div>تونل <b data-f="tun">${t.tun || "—"}</b></div>
+          <div>systemd <b data-f="sysd">${(t.systemd && t.systemd.active) || "—"}</b></div>
+          <div>IP تونل <b data-f="tlocal">${t.tun_local || "—"}</b></div>
+          <div>پیر <b data-f="tpeer">${t.tun_peer || "—"}</b></div>
+          <div>پینگ <b data-f="ping">${pingTxt(t.ping)}</b></div>
+          <div>پهنای‌باند <b data-f="bps">${fmtBps(t.rx_bps)} ↓ / ${fmtBps(t.tx_bps)} ↑</b></div>
         </div>
-        <div class="chart-box"><canvas id="chart-${t.id}"></canvas></div>
+        <div class="chart-box"><canvas data-chart="${t.id}"></canvas></div>
         <div class="card-actions">
           <button class="btn ghost" data-act="detail">جزئیات / ویرایش</button>
           <button class="btn warn" data-act="restart" ${locked || !t.unit ? "disabled" : ""}>ریستارت</button>
@@ -139,44 +184,87 @@
       </article>`;
   };
 
-  const renderCards = () => {
-    if (!tunnels.length) {
+  const bindCard = (el) => {
+    el.querySelector('[data-act="detail"]').onclick = () => openDetail(el.dataset.id);
+    const rst = el.querySelector('[data-act="restart"]');
+    if (rst) rst.onclick = () => restartTunnel(el.dataset.id);
+  };
+
+  const updateCard = (t) => {
+    const el = document.querySelector(`.card[data-id="${CSS.escape(t.id)}"]`);
+    if (!el) return;
+    el.classList.remove("up", "degraded", "down");
+    el.classList.add("card", pillClass(t.status));
+    setText(el, '[data-f="status"]', t.status);
+    const st = el.querySelector('[data-f="status"]');
+    if (st) st.className = `pill ${pillClass(t.status)}`;
+    const enc = el.querySelector('[data-f="enc"]');
+    if (enc) {
+      enc.textContent = t.encrypt === "1" ? "ENCRYPT" : "NO ENC";
+      enc.className = `pill ${t.encrypt === "1" ? "enc" : "lock"}`;
+    }
+    setText(el, '[data-f="proto"]', t.proto ? "PROTO " + t.proto : "");
+    setText(el, '[data-f="iran"]', "IR " + (t.iran_ip || "—"));
+    setText(el, '[data-f="kharej"]', "KH " + (t.kharej_ip || "—"));
+    setText(el, '[data-f="tun"]', t.tun || "—");
+    setText(el, '[data-f="sysd"]', (t.systemd && t.systemd.active) || "—");
+    setText(el, '[data-f="tlocal"]', t.tun_local || "—");
+    setText(el, '[data-f="tpeer"]', t.tun_peer || "—");
+    setText(el, '[data-f="ping"]', pingTxt(t.ping));
+    setText(el, '[data-f="bps"]', `${fmtBps(t.rx_bps)} ↓ / ${fmtBps(t.tx_bps)} ↑`);
+  };
+
+  const idsKey = (list) => list.map((t) => t.id).join("|");
+
+  const rebuildCards = (list) => {
+    if (!list.length) {
       $("cards").innerHTML = `<div class="empty">تانلی پیدا نشد. نصب ww51 / ww51v2 را روی همین سرور انجام دهید یا از «تانل جدید» پروفایل ایزوله بسازید.</div>`;
       return;
     }
-    $("cards").innerHTML = tunnels.map(cardHtml).join("");
-    $("cards").querySelectorAll(".card").forEach((el) => {
-      el.querySelector('[data-act="detail"]').onclick = () => openDetail(el.dataset.id);
-      const rst = el.querySelector('[data-act="restart"]');
-      if (rst) rst.onclick = () => restartTunnel(el.dataset.id);
-    });
+    $("cards").innerHTML = list.map(cardHtml).join("");
+    $("cards").querySelectorAll(".card").forEach(bindCard);
   };
 
-  const updateCharts = async () => {
-    for (const t of tunnels) {
-      if (!t.tun) continue;
-      try {
-        const m = await api(`/api/tunnels/${encodeURIComponent(t.id)}/metrics`);
-        const canvas = document.getElementById(`chart-${t.id}`);
-        if (!canvas) continue;
-        const ch = ensureChart(t.id, canvas);
-        if (!ch) continue;
-        const pts = (m.points || []).slice(-90);
-        ch.data.labels = pts.map((_, i) => i);
-        ch.data.datasets[0].data = pts.map((p) => p.rx_bps);
-        ch.data.datasets[1].data = pts.map((p) => p.tx_bps);
-        ch.update("none");
-      } catch (err) {
-        if (err.auth) return logoutView();
+  const applyTunnels = (list) => {
+    tunnels = list;
+    renderStats(list);
+    const key = idsKey(list);
+    if (key !== knownKey) {
+      knownKey = key;
+      rebuildCards(list);
+      return;
+    }
+    list.forEach(updateCard);
+  };
+
+  const applyMetrics = (payload) => {
+    const rows = (payload && payload.tunnels) || [];
+    for (const m of rows) {
+      const t = tunnels.find((x) => x.id === m.id);
+      if (t) {
+        t.rx_bps = m.rx_bps;
+        t.tx_bps = m.tx_bps;
+        if (m.ping) t.ping = m.ping;
+      }
+      const el = document.querySelector(`.card[data-id="${CSS.escape(m.id)}"]`);
+      if (el) {
+        setText(el, '[data-f="bps"]', `${fmtBps(m.rx_bps)} ↓ / ${fmtBps(m.tx_bps)} ↑`);
+        if (m.ping) setText(el, '[data-f="ping"]', pingTxt(m.ping));
+        const canvas = el.querySelector("canvas");
+        const pts = m.points || [];
+        drawSpark(canvas, pts.map((p) => p.rx_bps), pts.map((p) => p.tx_bps));
       }
     }
   };
 
   const loadTunnels = async () => {
     const data = await api("/api/tunnels");
-    tunnels = data.tunnels || [];
-    renderStats(tunnels);
-    renderCards();
+    applyTunnels(data.tunnels || []);
+  };
+
+  const loadMetrics = async () => {
+    const data = await api("/api/metrics");
+    applyMetrics(data);
   };
 
   const field = (label, name, value, extra = "") => `
@@ -221,7 +309,7 @@
           <button type="submit" class="btn primary">ذخیره و اعمال</button>
         </div>`}
       </form>`;
-    $("modal").hidden = false;
+    openModal();
     const form = $("edit-form");
     if (!ro) {
       form.onsubmit = async (e) => {
@@ -234,6 +322,7 @@
           await api(`/api/tunnels/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(body) });
           toast("اعمال شد");
           closeModal();
+          knownKey = "";
           await loadTunnels();
         } catch (err) { toast(err.message, true); }
       };
@@ -247,6 +336,7 @@
     try {
       await api(`/api/tunnels/${encodeURIComponent(id)}/${action}`, { method: "POST" });
       toast(action + " انجام شد");
+      knownKey = "";
       await loadTunnels();
     } catch (err) { toast(err.message, true); }
   };
@@ -288,7 +378,7 @@
           <button type="submit" class="btn primary">ایجاد تانل ایزوله</button>
         </div>
       </form>`;
-    $("modal").hidden = false;
+    openModal();
     $("new-form").onsubmit = async (e) => {
       e.preventDefault();
       if (!confirm("تانل جدید ایزوله ایجاد شود؟ v1/v2 دست نمی‌خورند.")) return;
@@ -297,6 +387,7 @@
         const res = await api("/api/tunnels", { method: "POST", body: JSON.stringify(body) });
         toast("تانل ساخته شد: " + (res.slot && res.slot.id));
         closeModal();
+        knownKey = "";
         await loadTunnels();
       } catch (err) { toast(err.message, true); }
     };
@@ -306,20 +397,27 @@
     showApp(false);
     clearInterval(statusTimer);
     clearInterval(metricsTimer);
-    statusTimer = metricsTimer = null;
+    clearInterval(clockTimer);
+    statusTimer = metricsTimer = clockTimer = null;
+    knownKey = "";
+    tunnels = [];
   };
 
   const startLoops = async () => {
     showApp(true);
     setClock();
     await loadTunnels();
-    await updateCharts();
+    try { await loadMetrics(); } catch { /* first paint is enough */ }
     clearInterval(statusTimer);
     clearInterval(metricsTimer);
+    clearInterval(clockTimer);
+    clockTimer = setInterval(setClock, 1000);
     statusTimer = setInterval(async () => {
       try { await loadTunnels(); } catch (err) { if (err.auth) logoutView(); }
-    }, 5000);
-    metricsTimer = setInterval(updateCharts, 2000);
+    }, 9000);
+    metricsTimer = setInterval(async () => {
+      try { await loadMetrics(); } catch (err) { if (err.auth) logoutView(); }
+    }, 2500);
   };
 
   $("login-form").onsubmit = async (e) => {
@@ -341,9 +439,15 @@
     try { await api("/api/logout", { method: "POST" }); } catch { /* ignore */ }
     logoutView();
   };
-  $("btn-refresh").onclick = () => loadTunnels().catch((err) => toast(err.message, true));
+  $("btn-refresh").onclick = () => {
+    knownKey = "";
+    loadTunnels().catch((err) => toast(err.message, true));
+  };
   $("btn-new").onclick = openWizard;
-  setInterval(setClock, 1000);
 
+  closeModal();
+  $("toast").classList.remove("is-open");
+  $("toast").hidden = true;
+  showApp(false);
   api("/api/me").then(startLoops).catch(() => showApp(false));
 })();

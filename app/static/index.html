@@ -4,33 +4,310 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ww-panel · کنترل تانل WaterWall</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/app.css" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js" defer></script>
-  <script src="/static/app.js" defer></script>
+  <style>
+:root {
+  --bg: #050816;
+  --navy: #071322;
+  --glass: rgba(10, 22, 40, 0.72);
+  --glass-2: rgba(14, 32, 56, 0.55);
+  --stroke: rgba(103, 232, 249, 0.14);
+  --stroke-strong: rgba(45, 212, 191, 0.35);
+  --teal: #2dd4bf;
+  --cyan: #67e8f9;
+  --mint: #99f6e4;
+  --text: #e8eef7;
+  --muted: #93a4bb;
+  --danger: #fb7185;
+  --warn: #fbbf24;
+  --ok: #34d399;
+  --shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+  --radius: 22px;
+  --ui: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
+  --mono: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, monospace;
+}
+
+[hidden] { display: none !important; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  font-family: var(--ui);
+  background: radial-gradient(1200px 700px at 80% -10%, rgba(45, 212, 191, 0.12), transparent 50%),
+              radial-gradient(900px 500px at -10% 110%, rgba(56, 189, 248, 0.1), transparent 45%),
+              var(--bg);
+  color: var(--text);
+  overflow-x: hidden;
+}
+
+.aurora {
+  position: fixed; inset: -20vh -10vw auto auto;
+  width: 55vw; height: 55vh;
+  background: radial-gradient(circle, rgba(45, 212, 191, 0.18), transparent 68%);
+  filter: blur(20px);
+  pointer-events: none;
+  z-index: 0;
+}
+.grid-bg {
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(rgba(103, 232, 249, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(103, 232, 249, 0.035) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at center, #000 40%, transparent 80%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.glass {
+  background: var(--glass);
+  border: 1px solid var(--stroke);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+#login-view { display: none; }
+#login-view.is-open {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  position: relative;
+  z-index: 1;
+  padding: 24px;
+}
+.login-card {
+  width: min(440px, 100%);
+  padding: 36px 32px 28px;
+  border-radius: 28px;
+  text-align: center;
+}
+.login-card h1 { margin: 10px 0 4px; font-size: 1.7rem; font-weight: 800; }
+.sub { margin: 0 0 22px; color: var(--muted); font-size: 0.92rem; }
+.brand-mark {
+  width: 64px; height: 64px; margin: 0 auto 8px;
+  border-radius: 18px;
+  display: grid; place-items: center;
+  font-weight: 800; letter-spacing: 0.04em;
+  color: #042f2e;
+  background: linear-gradient(145deg, var(--mint), var(--teal) 55%, var(--cyan));
+  box-shadow: 0 0 32px rgba(45, 212, 191, 0.35);
+}
+.brand-mark.sm { width: 44px; height: 44px; margin: 0; font-size: 0.95rem; border-radius: 14px; }
+
+#login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  text-align: right;
+}
+.field { display: block; width: 100%; }
+.field label, label {
+  display: block; text-align: right; font-size: 0.86rem; color: var(--muted); margin-bottom: 0;
+}
+.en { color: #64748b; font-size: 0.75rem; margin-right: 6px; font-family: var(--mono); }
+.field input, input, select, textarea {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  border: 1px solid var(--stroke);
+  background: rgba(5, 12, 24, 0.7);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 11px 12px;
+  font: inherit;
+  outline: none;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--stroke-strong);
+  box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.12);
+}
+.hint { color: var(--muted); font-size: 0.78rem; margin: 16px 0 0; }
+.error { color: var(--danger); margin: 10px 0 0; font-size: 0.86rem; }
+
+.btn {
+  border: 1px solid var(--stroke);
+  background: var(--glass-2);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 9px 14px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.btn:hover { transform: translateY(-1px); border-color: var(--stroke-strong); }
+.btn.primary {
+  background: linear-gradient(135deg, #14b8a6, #22d3ee);
+  color: #042f2e;
+  border-color: transparent;
+  box-shadow: 0 8px 24px rgba(34, 211, 238, 0.18);
+}
+.btn.ghost { background: transparent; }
+.btn.danger { border-color: rgba(251, 113, 133, 0.35); color: #fecdd3; }
+.btn.warn { border-color: rgba(251, 191, 36, 0.35); color: #fde68a; }
+.btn.wide { width: 100%; padding: 12px; margin-top: 6px; }
+.btn.icon { width: 36px; height: 36px; padding: 0; font-size: 1.3rem; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+#app-view { display: none; position: relative; z-index: 1; min-height: 100vh; }
+#app-view.is-open { display: block; }
+.topbar {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 16px; padding: 14px 22px; margin: 14px 16px 0;
+  border-radius: 20px;
+}
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand-title { font-weight: 800; letter-spacing: 0.04em; }
+.brand-sub { color: var(--muted); font-size: 0.78rem; }
+.top-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.clock { font-family: var(--mono); color: var(--cyan); font-size: 0.86rem; }
+
+.wrap { padding: 18px 16px 40px; max-width: 1400px; margin: 0 auto; }
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+.stat {
+  padding: 16px 18px; border-radius: 18px;
+  background: var(--glass-2); border: 1px solid var(--stroke);
+}
+.stat b { display: block; font-size: 1.5rem; margin-top: 4px; }
+.stat span { color: var(--muted); font-size: 0.82rem; }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; }
+.card {
+  padding: 18px 18px 14px;
+  border-radius: var(--radius);
+  background: var(--glass);
+  border: 1px solid var(--stroke);
+  box-shadow: var(--shadow);
+  position: relative;
+  overflow: hidden;
+}
+.card.up { box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.22), 0 20px 50px rgba(13, 148, 136, 0.12); }
+.card.up::after {
+  content: "";
+  position: absolute; inset: auto -20% 86% 40%;
+  height: 70px;
+  background: radial-gradient(circle, rgba(45, 212, 191, 0.22), transparent 70%);
+  pointer-events: none;
+}
+.card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.card h3 { margin: 0; font-size: 1.05rem; }
+.meta { color: var(--muted); font-size: 0.75rem; margin-top: 3px; font-family: var(--mono); }
+.pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.pill {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em;
+  padding: 4px 8px; border-radius: 999px; border: 1px solid transparent;
+}
+.pill.up { background: rgba(52, 211, 153, 0.14); color: #6ee7b7; border-color: rgba(52, 211, 153, 0.28); }
+.pill.degraded { background: rgba(251, 191, 36, 0.12); color: #fde68a; border-color: rgba(251, 191, 36, 0.28); }
+.pill.down { background: rgba(251, 113, 133, 0.12); color: #fda4af; border-color: rgba(251, 113, 133, 0.28); }
+.pill.lock { background: rgba(148, 163, 184, 0.12); color: #cbd5e1; }
+.pill.enc { background: rgba(56, 189, 248, 0.12); color: #7dd3fc; }
+.pill.proto { background: rgba(45, 212, 191, 0.1); color: var(--mint); }
+
+.pair {
+  margin: 14px 0 10px;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  font-family: var(--mono); font-size: 0.82rem;
+}
+.pair .arrow { color: var(--cyan); }
+.kv { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; font-size: 0.8rem; color: var(--muted); }
+.kv b { color: var(--text); font-weight: 600; }
+.chart-box { height: 86px; margin: 12px 0 8px; }
+.chart-box canvas { width: 100%; height: 100%; display: block; }
+.card-actions { display: flex; gap: 8px; margin-top: 10px; }
+
+.modal {
+  display: none;
+  position: fixed; inset: 0; z-index: 20;
+  background: rgba(2, 6, 16, 0.62);
+  place-items: center;
+  padding: 20px;
+}
+.modal.is-open { display: grid; }
+.modal-card {
+  width: min(720px, 100%);
+  max-height: min(90vh, 900px);
+  overflow: auto;
+  border-radius: 24px;
+  padding: 22px;
+}
+.modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.modal-head h2 { margin: 0; font-size: 1.2rem; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.warn-box {
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.22);
+  color: #fde68a;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  margin-bottom: 12px;
+}
+.lock-box {
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  color: #cbd5e1;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 0.82rem;
+}
+
+.toast {
+  display: none;
+  position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+  z-index: 30;
+  background: rgba(8, 20, 36, 0.92);
+  border: 1px solid var(--stroke-strong);
+  color: var(--text);
+  padding: 10px 16px;
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+}
+.toast.is-open { display: block; }
+.toast.danger { border-color: rgba(251, 113, 133, 0.45); }
+
+.empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 48px 16px;
+  color: var(--muted);
+  border: 1px dashed var(--stroke);
+  border-radius: 20px;
+}
+
+@media (max-width: 860px) {
+  .stats { grid-template-columns: 1fr 1fr; }
+  .grid2 { grid-template-columns: 1fr; }
+  .topbar { flex-direction: column; align-items: stretch; }
+}
+
+  </style>
 </head>
 <body>
   <div class="aurora" aria-hidden="true"></div>
   <div class="grid-bg" aria-hidden="true"></div>
 
-  <section id="login-view" class="login-wrap">
+  <section id="login-view" class="is-open">
     <div class="login-card glass">
       <div class="brand-mark">WW</div>
       <h1>پنل کنترل تانل</h1>
       <p class="sub">WaterWall Control Panel · ww-panel</p>
       <form id="login-form" autocomplete="on">
-        <label>نام کاربری <span class="en">Username</span>
+        <div class="field">
+          <label for="login-user">نام کاربری <span class="en">Username</span></label>
           <input id="login-user" name="username" type="text" required autofocus />
-        </label>
-        <label>رمز عبور <span class="en">Password</span>
+        </div>
+        <div class="field">
+          <label for="login-pass">رمز عبور <span class="en">Password</span></label>
           <input id="login-pass" name="password" type="password" required />
-        </label>
+        </div>
         <button type="submit" class="btn primary wide">ورود به داشبورد</button>
         <p id="login-error" class="error" hidden></p>
       </form>
-      <p class="hint">پیش‌فرض: <b>admin</b> — رمز فقط یک‌بار هنگام نصب نمایش داده می‌شود.</p>
+      <p class="hint">پیش‌فرض: <b>admin</b> — رمز هنگام نصب پرسیده می‌شود (خالی = ساخت خودکار).</p>
     </div>
   </section>
 
@@ -57,10 +334,10 @@
     </main>
   </section>
 
-  <div id="modal" class="modal" hidden>
+  <div id="modal" class="modal" hidden aria-hidden="true">
     <div class="modal-card glass">
       <div class="modal-head">
-        <h2 id="modal-title">ویرایش تانل</h2>
+        <h2 id="modal-title"></h2>
         <button id="modal-close" class="btn ghost icon" type="button" aria-label="close">×</button>
       </div>
       <div id="modal-body"></div>
@@ -68,5 +345,461 @@
   </div>
 
   <div id="toast" class="toast" hidden></div>
+  <script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  let tunnels = [];
+  let knownKey = "";
+  let statusTimer = null;
+  let metricsTimer = null;
+  let clockTimer = null;
+
+  const fmtBps = (n) => {
+    const v = Number(n) || 0;
+    if (v >= 1e9) return (v / 1e9).toFixed(2) + " Gbps";
+    if (v >= 1e6) return (v / 1e6).toFixed(2) + " Mbps";
+    if (v >= 1e3) return (v / 1e3).toFixed(1) + " Kbps";
+    return Math.round(v) + " bps";
+  };
+
+  const pingTxt = (ping) => {
+    const p = ping || {};
+    if (p.ok) return `${p.latency_ms ?? "—"} ms`;
+    if (p.error === "pending") return "در حال سنجش";
+    return p.error || "بدون پاسخ";
+  };
+
+  const toast = (msg, danger) => {
+    const el = $("toast");
+    el.textContent = msg;
+    el.classList.toggle("danger", !!danger);
+    el.classList.add("is-open");
+    el.hidden = false;
+    clearTimeout(el._t);
+    el._t = setTimeout(() => {
+      el.classList.remove("is-open");
+      el.hidden = true;
+    }, 3800);
+  };
+
+  const api = async (path, opts = {}) => {
+    const res = await fetch(path, {
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
+      ...opts,
+    });
+    let data = {};
+    try { data = await res.json(); } catch { data = {}; }
+    if (res.status === 401) throw Object.assign(new Error("auth"), { auth: true });
+    if (!res.ok || data.ok === false) throw new Error(data.error || data.detail || res.statusText);
+    return data;
+  };
+
+  const setClock = () => {
+    const el = $("clock");
+    if (!el) return;
+    el.textContent = new Date().toLocaleString("fa-IR", { hour12: false });
+  };
+
+  const closeModal = () => {
+    const el = $("modal");
+    el.classList.remove("is-open");
+    el.hidden = true;
+    el.setAttribute("aria-hidden", "true");
+    $("modal-body").innerHTML = "";
+    $("modal-title").textContent = "";
+  };
+
+  const openModal = () => {
+    const el = $("modal");
+    el.classList.add("is-open");
+    el.hidden = false;
+    el.setAttribute("aria-hidden", "false");
+  };
+
+  const showApp = (on) => {
+    $("login-view").classList.toggle("is-open", !on);
+    $("login-view").hidden = on;
+    $("app-view").classList.toggle("is-open", on);
+    $("app-view").hidden = !on;
+    if (!on) {
+      closeModal();
+      $("toast").classList.remove("is-open");
+      $("toast").hidden = true;
+    }
+  };
+
+  $("modal-close").onclick = closeModal;
+  $("modal").addEventListener("click", (e) => { if (e.target.id === "modal") closeModal(); });
+
+  const pillClass = (status) => {
+    if (status === "UP") return "up";
+    if (status === "DEGRADED") return "degraded";
+    return "down";
+  };
+
+  const drawSpark = (canvas, rx, tx) => {
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth || 300;
+    const h = canvas.clientHeight || 80;
+    if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+    }
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const rxd = rx && rx.length ? rx : [0, 0];
+    const txd = tx && tx.length ? tx : [0, 0];
+    const n = Math.max(rxd.length, txd.length, 2);
+    let max = 1;
+    for (const v of rxd) max = Math.max(max, Number(v) || 0);
+    for (const v of txd) max = Math.max(max, Number(v) || 0);
+    const paint = (data, stroke, fill) => {
+      ctx.beginPath();
+      data.forEach((v, i) => {
+        const x = (i / (n - 1)) * w;
+        const y = h - 3 - ((Number(v) || 0) / max) * (h - 8);
+        if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+      });
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+      ctx.lineTo(w, h);
+      ctx.lineTo(0, h);
+      ctx.closePath();
+      ctx.fillStyle = fill;
+      ctx.fill();
+    };
+    paint(txd, "#2dd4bf", "rgba(45,212,191,.10)");
+    paint(rxd, "#67e8f9", "rgba(103,232,249,.12)");
+  };
+
+  const renderStats = (list) => {
+    const up = list.filter((t) => t.status === "UP").length;
+    const deg = list.filter((t) => t.status === "DEGRADED").length;
+    const down = list.filter((t) => t.status === "DOWN").length;
+    const locked = list.filter((t) => t.locked || t.kind === "backhaul").length;
+    $("stats").innerHTML = `
+      <div class="stat"><span>آنلاین UP</span><b>${up}</b></div>
+      <div class="stat"><span>نیمه‌سالم DEGRADED</span><b>${deg}</b></div>
+      <div class="stat"><span>قطع DOWN</span><b>${down}</b></div>
+      <div class="stat"><span>بک‌هال قفل‌شده</span><b>${locked}</b></div>`;
+  };
+
+  const setText = (root, sel, text) => {
+    const el = root.querySelector(sel);
+    if (el && el.textContent !== String(text)) el.textContent = text;
+  };
+
+  const cardHtml = (t) => {
+    const locked = t.locked || t.kind === "backhaul";
+    const role = t.local_role === "iran" ? "این سمت: ایران" : (t.local_role === "kharej" ? "این سمت: خارج" : "");
+    return `
+      <article class="card ${pillClass(t.status)}" data-id="${t.id}">
+        <div class="card-head">
+          <div>
+            <h3 data-f="name">${t.name}</h3>
+            <div class="meta" data-f="meta">${t.unit || "no-unit"} · ${t.family || ""} ${role ? "· " + role : ""}</div>
+          </div>
+          <div class="pills">
+            <span class="pill ${pillClass(t.status)}" data-f="status">${t.status}</span>
+            ${locked ? '<span class="pill lock">LOCKED</span>' : ""}
+            <span class="pill ${t.encrypt === "1" ? "enc" : "lock"}" data-f="enc">${t.encrypt === "1" ? "ENCRYPT" : "NO ENC"}</span>
+            <span class="pill proto" data-f="proto">${t.proto ? "PROTO " + t.proto : ""}</span>
+          </div>
+        </div>
+        <div class="pair">
+          <div data-f="iran">IR ${t.iran_ip || "—"}</div>
+          <div class="arrow">↔</div>
+          <div data-f="kharej">KH ${t.kharej_ip || "—"}</div>
+        </div>
+        <div class="kv">
+          <div>تونل <b data-f="tun">${t.tun || "—"}</b></div>
+          <div>systemd <b data-f="sysd">${(t.systemd && t.systemd.active) || "—"}</b></div>
+          <div>IP تونل <b data-f="tlocal">${t.tun_local || "—"}</b></div>
+          <div>پیر <b data-f="tpeer">${t.tun_peer || "—"}</b></div>
+          <div>پینگ <b data-f="ping">${pingTxt(t.ping)}</b></div>
+          <div>پهنای‌باند <b data-f="bps">${fmtBps(t.rx_bps)} ↓ / ${fmtBps(t.tx_bps)} ↑</b></div>
+        </div>
+        <div class="chart-box"><canvas data-chart="${t.id}"></canvas></div>
+        <div class="card-actions">
+          <button class="btn ghost" data-act="detail">جزئیات / ویرایش</button>
+          <button class="btn warn" data-act="restart" ${locked || !t.unit ? "disabled" : ""}>ریستارت</button>
+        </div>
+      </article>`;
+  };
+
+  const bindCard = (el) => {
+    el.querySelector('[data-act="detail"]').onclick = () => openDetail(el.dataset.id);
+    const rst = el.querySelector('[data-act="restart"]');
+    if (rst) rst.onclick = () => restartTunnel(el.dataset.id);
+  };
+
+  const updateCard = (t) => {
+    const el = document.querySelector(`.card[data-id="${CSS.escape(t.id)}"]`);
+    if (!el) return;
+    el.classList.remove("up", "degraded", "down");
+    el.classList.add("card", pillClass(t.status));
+    setText(el, '[data-f="status"]', t.status);
+    const st = el.querySelector('[data-f="status"]');
+    if (st) st.className = `pill ${pillClass(t.status)}`;
+    const enc = el.querySelector('[data-f="enc"]');
+    if (enc) {
+      enc.textContent = t.encrypt === "1" ? "ENCRYPT" : "NO ENC";
+      enc.className = `pill ${t.encrypt === "1" ? "enc" : "lock"}`;
+    }
+    setText(el, '[data-f="proto"]', t.proto ? "PROTO " + t.proto : "");
+    setText(el, '[data-f="iran"]', "IR " + (t.iran_ip || "—"));
+    setText(el, '[data-f="kharej"]', "KH " + (t.kharej_ip || "—"));
+    setText(el, '[data-f="tun"]', t.tun || "—");
+    setText(el, '[data-f="sysd"]', (t.systemd && t.systemd.active) || "—");
+    setText(el, '[data-f="tlocal"]', t.tun_local || "—");
+    setText(el, '[data-f="tpeer"]', t.tun_peer || "—");
+    setText(el, '[data-f="ping"]', pingTxt(t.ping));
+    setText(el, '[data-f="bps"]', `${fmtBps(t.rx_bps)} ↓ / ${fmtBps(t.tx_bps)} ↑`);
+  };
+
+  const idsKey = (list) => list.map((t) => t.id).join("|");
+
+  const rebuildCards = (list) => {
+    if (!list.length) {
+      $("cards").innerHTML = `<div class="empty">تانلی پیدا نشد. نصب ww51 / ww51v2 را روی همین سرور انجام دهید یا از «تانل جدید» پروفایل ایزوله بسازید.</div>`;
+      return;
+    }
+    $("cards").innerHTML = list.map(cardHtml).join("");
+    $("cards").querySelectorAll(".card").forEach(bindCard);
+  };
+
+  const applyTunnels = (list) => {
+    tunnels = list;
+    renderStats(list);
+    const key = idsKey(list);
+    if (key !== knownKey) {
+      knownKey = key;
+      rebuildCards(list);
+      return;
+    }
+    list.forEach(updateCard);
+  };
+
+  const applyMetrics = (payload) => {
+    const rows = (payload && payload.tunnels) || [];
+    for (const m of rows) {
+      const t = tunnels.find((x) => x.id === m.id);
+      if (t) {
+        t.rx_bps = m.rx_bps;
+        t.tx_bps = m.tx_bps;
+        if (m.ping) t.ping = m.ping;
+      }
+      const el = document.querySelector(`.card[data-id="${CSS.escape(m.id)}"]`);
+      if (el) {
+        setText(el, '[data-f="bps"]', `${fmtBps(m.rx_bps)} ↓ / ${fmtBps(m.tx_bps)} ↑`);
+        if (m.ping) setText(el, '[data-f="ping"]', pingTxt(m.ping));
+        const canvas = el.querySelector("canvas");
+        const pts = m.points || [];
+        drawSpark(canvas, pts.map((p) => p.rx_bps), pts.map((p) => p.tx_bps));
+      }
+    }
+  };
+
+  const loadTunnels = async () => {
+    const data = await api("/api/tunnels");
+    applyTunnels(data.tunnels || []);
+  };
+
+  const loadMetrics = async () => {
+    const data = await api("/api/metrics");
+    applyMetrics(data);
+  };
+
+  const field = (label, name, value, extra = "") => `
+    <label>${label}
+      <input name="${name}" value="${String(value ?? "").replace(/"/g, "&quot;")}" ${extra} />
+    </label>`;
+
+  const openDetail = async (id) => {
+    const data = await api(`/api/tunnels/${encodeURIComponent(id)}`);
+    const t = data.tunnel;
+    $("modal-title").textContent = t.locked ? `بک‌هال · ${t.name}` : `ویرایش · ${t.name}`;
+    const ro = t.locked || !t.writable;
+    $("modal-body").innerHTML = `
+      ${t.locked ? `<div class="lock-box">بک‌هال فقط نمایش است. این پنل هرگز آن را ویرایش یا ریستارت نمی‌کند.</div>` : ""}
+      ${t.unmanaged ? `<div class="warn-box">کانفیگ WaterWall بدون tunnel.env — فقط‌خواندنی.</div>` : ""}
+      ${!ro ? `<div class="warn-box">ذخیره، tunnel.env را بکاپ می‌گیرد و فقط همین یونیت را apply/restart می‌کند. v1/v2/بک‌هال دیگر دست نخورده می‌مانند.</div>` : ""}
+      <form id="edit-form">
+        <div class="grid2">
+          ${field("IP ایران / Iran IP", "iran_ip", t.iran_ip, ro ? "disabled" : "")}
+          ${field("IP خارج / Kharej IP", "kharej_ip", t.kharej_ip, ro ? "disabled" : "")}
+          ${field("پروتکل PROTO (0-255)", "proto", t.proto, ro ? "disabled" : "")}
+          ${field("پورت‌ها PORTS", "ports", t.ports, ro ? "disabled" : "")}
+          <label>رمزنگاری ENCRYPT
+            <select name="encrypt" ${ro ? "disabled" : ""}>
+              <option value="0" ${t.encrypt !== "1" ? "selected" : ""}>خاموش 0</option>
+              <option value="1" ${t.encrypt === "1" ? "selected" : ""}>روشن 1</option>
+            </select>
+          </label>
+          ${field("AES_KEY (۳۲ کاراکتر)", "aes_key", "", ro ? "disabled placeholder=\"••••\"" : `placeholder="${t.aes_key_masked || "خالی = بدون تغییر"}"`)}
+          ${field("PORT_OFFSET", "port_offset", t.port_offset, ro ? "disabled" : "")}
+          ${field("ENC_ALGO", "enc_algo", t.enc_algo, ro ? "disabled" : "")}
+        </div>
+        <div class="kv" style="margin-top:12px">
+          <div>سمت <b>${t.side || "—"}</b></div>
+          <div>تونل <b>${t.tun || "—"} ${t.tun_local || ""}</b></div>
+          <div>systemd <b>${(t.systemd && t.systemd.active) || "—"}</b></div>
+          <div>پوشه <b>${t.install_dir || "—"}</b></div>
+        </div>
+        ${ro ? "" : `<div class="form-actions">
+          <button type="button" class="btn ghost" id="btn-start">Start</button>
+          <button type="button" class="btn danger" id="btn-stop">Stop</button>
+          <button type="submit" class="btn primary">ذخیره و اعمال</button>
+        </div>`}
+      </form>`;
+    openModal();
+    const form = $("edit-form");
+    if (!ro) {
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        if (!confirm("اعمال شود؟ فقط همین تانل ریستارت می‌شود.")) return;
+        const fd = new FormData(form);
+        const body = Object.fromEntries(fd.entries());
+        if (!body.aes_key) delete body.aes_key;
+        try {
+          await api(`/api/tunnels/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(body) });
+          toast("اعمال شد");
+          closeModal();
+          knownKey = "";
+          await loadTunnels();
+        } catch (err) { toast(err.message, true); }
+      };
+      $("btn-start").onclick = () => control(id, "start");
+      $("btn-stop").onclick = () => control(id, "stop");
+    }
+  };
+
+  const control = async (id, action) => {
+    if (!confirm(`${action} فقط برای همین یونیت؟`)) return;
+    try {
+      await api(`/api/tunnels/${encodeURIComponent(id)}/${action}`, { method: "POST" });
+      toast(action + " انجام شد");
+      knownKey = "";
+      await loadTunnels();
+    } catch (err) { toast(err.message, true); }
+  };
+
+  const restartTunnel = (id) => control(id, "restart");
+
+  const openWizard = async () => {
+    let slot = null;
+    try { slot = (await api("/api/slots/next")).slot; } catch (err) { toast(err.message, true); }
+    $("modal-title").textContent = "جادوگر تانل جدید";
+    $("modal-body").innerHTML = `
+      <div class="warn-box">
+        پروفایل ایزوله ساخته می‌شود (${slot ? slot.id : "tN"}) با تونل ${slot ? slot.tun : "wtunN"} و ساب‌نت ${slot ? slot.tun_cidr : "10.10.N.0/24"}.
+        یونیت‌های waterwall-proto51 و v2 و بک‌هال تغییر نمی‌کنند.
+      </div>
+      <form id="new-form">
+        <div class="grid2">
+          <label>سمت
+            <select name="side">
+              <option value="ir">ایران (Iran)</option>
+              <option value="kharej">خارج (Kharej)</option>
+            </select>
+          </label>
+          ${field("IP ایران", "iran_ip", "", "required")}
+          ${field("IP خارج", "kharej_ip", "", "required")}
+          ${field("PROTO", "proto", "51")}
+          ${field("PORTS", "ports", "443 2053 2083 2087 2096 8443")}
+          <label>ENCRYPT
+            <select name="encrypt">
+              <option value="0" selected>خاموش</option>
+              <option value="1">روشن</option>
+            </select>
+          </label>
+          ${field("AES_KEY (۳۲ کاراکتر اگر ENCRYPT=1)", "aes_key", "")}
+          ${field("PORT_OFFSET", "port_offset", "10000")}
+          ${field("ENC_ALGO", "enc_algo", "chacha20-poly1305")}
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn primary">ایجاد تانل ایزوله</button>
+        </div>
+      </form>`;
+    openModal();
+    $("new-form").onsubmit = async (e) => {
+      e.preventDefault();
+      if (!confirm("تانل جدید ایزوله ایجاد شود؟ v1/v2 دست نمی‌خورند.")) return;
+      const body = Object.fromEntries(new FormData(e.target).entries());
+      try {
+        const res = await api("/api/tunnels", { method: "POST", body: JSON.stringify(body) });
+        toast("تانل ساخته شد: " + (res.slot && res.slot.id));
+        closeModal();
+        knownKey = "";
+        await loadTunnels();
+      } catch (err) { toast(err.message, true); }
+    };
+  };
+
+  const logoutView = () => {
+    showApp(false);
+    clearInterval(statusTimer);
+    clearInterval(metricsTimer);
+    clearInterval(clockTimer);
+    statusTimer = metricsTimer = clockTimer = null;
+    knownKey = "";
+    tunnels = [];
+  };
+
+  const startLoops = async () => {
+    showApp(true);
+    setClock();
+    await loadTunnels();
+    try { await loadMetrics(); } catch { /* first paint is enough */ }
+    clearInterval(statusTimer);
+    clearInterval(metricsTimer);
+    clearInterval(clockTimer);
+    clockTimer = setInterval(setClock, 1000);
+    statusTimer = setInterval(async () => {
+      try { await loadTunnels(); } catch (err) { if (err.auth) logoutView(); }
+    }, 9000);
+    metricsTimer = setInterval(async () => {
+      try { await loadMetrics(); } catch (err) { if (err.auth) logoutView(); }
+    }, 2500);
+  };
+
+  $("login-form").onsubmit = async (e) => {
+    e.preventDefault();
+    $("login-error").hidden = true;
+    try {
+      await api("/api/login", {
+        method: "POST",
+        body: JSON.stringify({ username: $("login-user").value, password: $("login-pass").value }),
+      });
+      await startLoops();
+    } catch (err) {
+      $("login-error").textContent = "ورود نامعتبر";
+      $("login-error").hidden = false;
+    }
+  };
+
+  $("btn-logout").onclick = async () => {
+    try { await api("/api/logout", { method: "POST" }); } catch { /* ignore */ }
+    logoutView();
+  };
+  $("btn-refresh").onclick = () => {
+    knownKey = "";
+    loadTunnels().catch((err) => toast(err.message, true));
+  };
+  $("btn-new").onclick = openWizard;
+
+  closeModal();
+  $("toast").classList.remove("is-open");
+  $("toast").hidden = true;
+  showApp(false);
+  api("/api/me").then(startLoops).catch(() => showApp(false));
+})();
+
+  </script>
 </body>
 </html>
